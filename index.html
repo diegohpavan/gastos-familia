@@ -1844,13 +1844,6 @@ window.cerrarModalCat=cerrarModalCat;window.selNcTipo=selNcTipo;window.selNcEmoj
   nav.addEventListener('mousemove',e=>{if(!isDown)return;e.preventDefault();const x=e.pageX-nav.offsetLeft;nav.scrollLeft=scrollLeft-(x-startX)*1.5;});
 })();
 
-// BOOT
-loadConfig().then(()=>{renderLogin();setSyncStatus(false);});
-
-// SERVICE WORKER para PWA
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').catch(()=>{});
-}
-</script>
-</body>
-</html>
+// BOOT — limpiar fotos viejas de localStorage
+try{Object.keys(localStorage).filter(k=>k.startsWith('foto_')||k.startsWith('gf_foto_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
+loadConfig().then(()=>{renderLogin
