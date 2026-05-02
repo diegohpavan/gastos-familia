@@ -1080,9 +1080,8 @@ function toggleVerPass(){
   else{inp.type='password';btn.textContent='👁 Ver';}
 }
 
-// FOTOS — se guardan en localStorage (cada dispositivo) por límite de tamaño de Firebase
-function getFoto(u){try{return localStorage.getItem('gf_foto_'+u)||null;}catch(e){return null;}}
-function delFoto(u){try{localStorage.removeItem('gf_foto_'+u);}catch(e){}}
+// FOTOS — guardadas en Firebase config, comprimidas a tamaño mínimo
+function getFoto(u){return state.config.users[u]?.foto||null;}
 
 function subirFoto(event){
   const file=event.target.files[0];
@@ -1091,38 +1090,33 @@ function subirFoto(event){
   const url=URL.createObjectURL(file);
   img.onload=()=>{
     const canvas=document.createElement('canvas');
-    const size=200;
+    // Muy pequeño para que entre en Firebase (80x80px)
+    const size=80;
     canvas.width=size;canvas.height=size;
     const ctx=canvas.getContext('2d');
     const min=Math.min(img.width,img.height);
     const sx=(img.width-min)/2, sy=(img.height-min)/2;
     ctx.drawImage(img,sx,sy,min,min,0,0,size,size);
-    const dataUrl=canvas.toDataURL('image/jpeg',0.8);
+    // Calidad muy baja = tamaño muy pequeño (~5-8KB)
+    const dataUrl=canvas.toDataURL('image/jpeg',0.4);
     URL.revokeObjectURL(url);
-    try{
-      localStorage.setItem('gf_foto_'+state.user, dataUrl);
-    }catch(e){
-      toast('Foto muy grande, probá una más chica');
-      return;
-    }
-    // Actualizar avatar del topbar
-    updateTopAvatar();
-    // Actualizar preview en perfil sin re-renderizar
-    const perfilAvatar=document.querySelector('#mainContent .card img');
-    const perfilDiv=document.querySelector('#mainContent .card > div[style*="inline-block"]');
-    if(perfilDiv){
-      perfilDiv.querySelector('img,div:first-child').outerHTML=`<img src="${dataUrl}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid ${state.config.users[state.user].color}66">`;
-    }
-    toast('✓ Foto guardada');
+    state.config.users[state.user].foto=dataUrl;
+    saveConfig().then(()=>{
+      toast('✓ Foto guardada en la nube');
+      updateTopAvatar();
+      render.perfil();
+    }).catch(()=>toast('Error al guardar foto'));
   };
   img.src=url;
 }
 
 function quitarFoto(){
-  delFoto(state.user);
-  toast('Foto quitada');
-  updateTopAvatar();
-  render.perfil();
+  delete state.config.users[state.user].foto;
+  saveConfig().then(()=>{
+    toast('Foto quitada');
+    updateTopAvatar();
+    render.perfil();
+  });
 }
 
 function updateTopAvatar(){
