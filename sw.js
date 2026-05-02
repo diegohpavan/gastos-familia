@@ -1,11 +1,9 @@
-const CACHE = 'gastos-v3';
-self.addEventListener('install', e => { self.skipWaiting(); });
+// Service worker que se elimina solo para limpiar el caché
+self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+    .then(() => self.registration.unregister())
     .then(() => clients.claim())
   );
-});
-self.addEventListener('fetch', e => {
-  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
 });
