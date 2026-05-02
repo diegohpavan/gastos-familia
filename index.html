@@ -514,14 +514,23 @@ const gastosMes = (u,m,a,tipo) => {
     if(u && g.usuario!==u) return;
     const origen=new Date(g.fecha+'T00:00:00');
     const cuotas=g.cuotas||1;
-    // Determinar si este gasto aplica al filtro de tipo
     const tipoReal=g.tipo;
-    const destCasa=tipoReal==='tarjeta'&&g.tarjetaDestino==='casa';
-    const destMenor=tipoReal==='tarjeta'&&g.tarjetaDestino==='menor';
-    // Filtro de tipo: casa incluye tarjetas con destino casa
-    if(tipo==='casa' && tipoReal!=='casa' && !destCasa) return;
-    if(tipo==='menor' && tipoReal!=='menor' && !destMenor) return;
-    if(tipo && tipo!=='casa' && tipo!=='menor' && tipoReal!==tipo) return;
+    const destCasa=tipoReal==='tarjeta'&&(g.tarjetaDestino==='casa');
+    const destMenor=tipoReal==='tarjeta'&&(g.tarjetaDestino==='menor');
+    // Filtro de tipo
+    if(tipo==='casa'){
+      // Casa: gastos de tipo casa O tarjetas con destino casa
+      if(tipoReal!=='casa' && !destCasa) return;
+    } else if(tipo==='menor'){
+      if(tipoReal!=='menor' && !destMenor) return;
+    } else if(tipo==='tarjeta'){
+      if(tipoReal!=='tarjeta') return;
+    } else if(tipo){
+      if(tipoReal!==tipo) return;
+    }
+    // Sin filtro de tipo: incluir todos EXCEPTO tarjetas-casa que ya cuentan como casa
+    // (para evitar doble conteo en "mis gastos")
+    // No — las tarjetas siempre aparecen en mis gastos con su monto total
     if(cuotas<=1){
       if(origen.getMonth()===m && origen.getFullYear()===a){
         resultado.push({...g, montoCuota:g.monto});
@@ -1246,11 +1255,13 @@ function rowGasto(g, showEdit){
   const editBtn=canEdit?'<button class="btn btn-ghost btn-sm" onclick="editarGasto(\''+g.id+'\')" style="margin-top:4px;font-size:11px;padding:4px 8px">✎ editar</button>':'';
   const menorTag=g.menor?'<span style="color:var(--warn);font-size:11px">'+g.menor+'</span>':'';
   const notaTag=g.nota?'<span style="color:var(--text3);font-size:11px">'+g.nota+'</span>':'';
+  const destTag=g.tipo==='tarjeta'&&g.tarjetaDestino&&g.tarjetaDestino!=='personal'?
+    '<span class="badge '+(g.tarjetaDestino==='casa'?'badge-casa':'badge-menor')+'">'+(g.tarjetaDestino==='casa'?'🏠 casa':'👶 menores')+'</span>':'';
   // Desglose para tarjetas
   const desglose=g.tipo==='tarjeta'&&canEdit?'<button class="btn btn-ghost btn-sm" onclick="abrirDesglose(\''+g.id+'\')" style="margin-top:4px;font-size:11px;padding:4px 8px">📋 desglose</button>':'';
   const items=g.items||[];
   const desglosePreview=items.length?'<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">'+items.map(it=>'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);padding:2px 0"><span>'+it.desc+(it.cuotas>1?' ('+it.cuotaActual+'/'+it.cuotas+')':'')+'</span><span>'+fmt(it.monto/Math.max(it.cuotas,1))+'</span></div>').join('')+'</div>':'';
-  return '<div class="gasto-row"><div class="g-icon" style="background:'+(ud?ud.color+'22':'#ffffff11')+'">'+cat.emoji+'</div><div class="g-info"><div class="g-title">'+g.desc+' '+cuotaChip+'</div><div class="g-sub"><span class="badge '+tb+'">'+cat.nombre+'</span><span style="color:'+(ud?ud.color:'#999')+';font-size:11px">'+g.usuario+'</span>'+menorTag+notaTag+'</div>'+desglosePreview+'</div><div><div class="g-amount">'+montoMostrar+'</div>'+montoTotal+'<div class="g-date">'+ds+'</div>'+editBtn+desglose+'</div></div>';
+  return '<div class="gasto-row"><div class="g-icon" style="background:'+(ud?ud.color+'22':'#ffffff11')+'">'+cat.emoji+'</div><div class="g-info"><div class="g-title">'+g.desc+' '+cuotaChip+'</div><div class="g-sub"><span class="badge '+tb+'">'+cat.nombre+'</span><span style="color:'+(ud?ud.color:'#999')+';font-size:11px">'+g.usuario+'</span>'+destTag+menorTag+notaTag+'</div>'+desglosePreview+'</div><div><div class="g-amount">'+montoMostrar+'</div>'+montoTotal+'<div class="g-date">'+ds+'</div>'+editBtn+desglose+'</div></div>';
 }
 
 // MONTH NAV
@@ -1289,7 +1300,24 @@ function openModal(gasto){
     document.getElementById('notaIn').value=gasto.nota||'';
     document.getElementById('fechaIn').value=gasto.fecha;
     state.tipoSel=gasto.tipo;
+    // Restaurar destino de tarjeta
+    const dest=gasto.tarjetaDestino||'personal';
+    state.tarjetaDestino=dest;
+    tarjetaDestino=dest;
     renderTipoGrid();
+    // Actualizar botones de destino tarjeta
+    if(gasto.tipo==='tarjeta'){
+      setTimeout(()=>{
+        const td=document.getElementById('td'+dest.charAt(0).toUpperCase()+dest.slice(1));
+        if(td){
+          ['tdPersonal','tdCasa','tdMenor'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='tipo-btn';});
+          td.className='tipo-btn sel';
+        }
+        const tarjMenorField=document.getElementById('tarjetaMenorField');
+        if(tarjMenorField) tarjMenorField.style.display=dest==='menor'?'block':'none';
+        if(gasto.tarjetaMenor) document.getElementById('tarjetaMenorSel').value=gasto.tarjetaMenor;
+      },40);
+    }
     renderCatSel();
     setTimeout(()=>{
       document.getElementById('catSel').value=gasto.catId;
@@ -2009,7 +2037,9 @@ function responderLocal(texto){
   const u=state.user;
 
   // DETECTAR MES DE REFERENCIA
-  let m=state.mes, a=state.anio;
+  // Usar fecha real como base, no el mes seleccionado en la app
+  const hoy=new Date();
+  let m=hoy.getMonth(), a=hoy.getFullYear();
   let todoElAnio=false;
   const mesesNombres=MESES.map(x=>x.toLowerCase());
   const mesEncontrado=mesesNombres.findIndex(mn=>t.includes(mn));
@@ -2017,12 +2047,11 @@ function responderLocal(texto){
     m=mesEncontrado;
     if(t.includes('2025')) a=2025;
     else if(t.includes('2024')) a=2024;
+    else if(t.includes('2026')) a=2026;
   } else if(t.includes('mes pasado')||t.includes('anterior')&&!t.includes('año')){
-    m=state.mes-1; a=state.anio;
-    if(m<0){m=11;a=state.anio-1;}
-  } else if(t.includes('este mes')||t.includes('actual')){
-    m=state.mes; a=state.anio;
-  } else if(t.includes('año')||t.includes('anio')||t.includes('anual')||t.includes('todo')){
+    m=hoy.getMonth()-1; a=hoy.getFullYear();
+    if(m<0){m=11;a=hoy.getFullYear()-1;}
+  } else if(t.includes('año')||t.includes('anio')||t.includes('anual')||t.includes('gasto anual')||t.includes('gastе en el año')){
     todoElAnio=true;
   }
 
@@ -2086,8 +2115,9 @@ function responderLocal(texto){
   // HISTORICO / COMPARACION
   if(t.includes('anterior')||t.includes('pasado')||t.includes('histórico')||t.includes('historico')||t.includes('evoluci')||t.includes('compar')){
     const hist=[];
-    for(let i=0;i<6;i++){let mm=m-i,aa=a;if(mm<0){mm+=12;aa--;}const tot=gastosMes(u,mm,aa).reduce((s,g)=>s+g.monto,0);hist.push({mes:MESES[mm],total:tot});}
-    return `📈 Evolución de tus gastos (últimos 6 meses)\n\n${hist.map((h,i)=>`${i===0?'→':' '} ${h.mes}: ${fmt(h.total)}`).join('\n')}`;
+    const hoyM=hoy.getMonth(), hoyA=hoy.getFullYear();
+    for(let i=0;i<6;i++){let mm=hoyM-i,aa=hoyA;if(mm<0){mm+=12;aa--;}const tot=gastosMes(u,mm,aa).reduce((s,g)=>s+g.monto,0);hist.push({mes:MESES[mm]+' '+aa,total:tot});}
+    return '📈 Evolución de tus gastos (últimos 6 meses)\n\n'+hist.map((h,i)=>(i===0?'→':' ')+' '+h.mes+': '+fmt(h.total)).join('\n');
   }
 
   // CUANTO GASTE / TOTAL
@@ -2136,7 +2166,9 @@ function buscarGastos(texto, tab){
     g.desc.toLowerCase().includes(busqueda)||
     catById(g.catId).nombre.toLowerCase().includes(busqueda)||
     (g.tipo||'').toLowerCase().includes(busqueda)||
+    (g.tarjetaDestino||'').toLowerCase().includes(busqueda)||
     (g.menor||'').toLowerCase().includes(busqueda)||
+    (g.tarjetaMenor||'').toLowerCase().includes(busqueda)||
     (tab==='grupo'&&g.usuario.toLowerCase().includes(busqueda))
   );
   const total=gastos.reduce((s,g)=>s+g.monto,0);
