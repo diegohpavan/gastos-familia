@@ -653,8 +653,6 @@ const render = {
       <div class="card" id="searchResults">
         ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin gastos este mes</p></div>'}
       </div>`;
-    // Mantener foco si había búsqueda
-    if(busqueda) setTimeout(()=>{const inp=document.getElementById('searchInput');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);}},50);
   },
   grupo(){
     const m=state.mes, a=state.anio;
@@ -684,7 +682,6 @@ const render = {
       <div class="card" id="searchResults">
         ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin gastos este mes</p></div>'}
       </div>`;
-    if(busqueda) setTimeout(()=>{const inp=document.getElementById('searchInput');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);}},50);
   },
   casa(){
     const m=state.mes, a=state.anio;
@@ -1934,6 +1931,8 @@ function buscarGastos(texto, tab){
   if(busqueda) gastos=gastos.filter(g=>
     g.desc.toLowerCase().includes(busqueda)||
     catById(g.catId).nombre.toLowerCase().includes(busqueda)||
+    (g.tipo||'').toLowerCase().includes(busqueda)||
+    (g.menor||'').toLowerCase().includes(busqueda)||
     (tab==='grupo'&&g.usuario.toLowerCase().includes(busqueda))
   );
   const total=gastos.reduce((s,g)=>s+g.monto,0);
@@ -1980,7 +1979,9 @@ window.cambiarMes=cambiarMes;window.cambiarPass=cambiarPass;
 function limpiarBusqueda(tab){
   if(tab==='gastos') state.busquedaGastos='';
   else state.busquedaGrupo='';
-  render[tab]?.();
+  const inp=document.getElementById('searchInput');
+  if(inp) inp.value='';
+  buscarGastos('',tab);
 }
 window.buscarGastos=buscarGastos;window.limpiarBusqueda=limpiarBusqueda;
 window.toggleVerPass=toggleVerPass;window.subirFoto=subirFoto;window.quitarFoto=quitarFoto;
