@@ -817,25 +817,43 @@ const render = {
     const listas=state.config.listas||{compras:[],deseos:[],proyectos:[]};
     const tabs=[{k:'compras',label:'🛒 Compras'},{k:'deseos',label:'⭐ Deseos'},{k:'proyectos',label:'🎯 Proyectos'}];
     let contenido='';
+    const CATS_COMPRA=['Almacén / Despensa','Carnes','Frutas y Verduras','Lácteos','Panadería y Galletitas','Bebidas','Limpieza','Higiene personal','Indumentaria y Calzado','Congelados','Mascotas','Otros'];
     if(tipoActual==='compras'){
       const items=listas.compras||[];
       const pendientes=items.filter(i=>!i.done);
       const hechos=items.filter(i=>i.done);
+      // Agrupar pendientes por categoría
+      const agrupados={};
+      pendientes.forEach(it=>{
+        const cat=it.categoria||'Sin categoría';
+        if(!agrupados[cat]) agrupados[cat]=[];
+        agrupados[cat].push(it);
+      });
+      const gruposOrdenados=Object.entries(agrupados).sort((a,b)=>a[0].localeCompare(b[0]));
       contenido=`
-        <div style="display:flex;gap:8px;margin-bottom:14px">
+        <div style="display:flex;gap:8px;margin-bottom:8px">
           <input type="text" id="nuevoItemInput" placeholder="Agregar ítem..." style="flex:1;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);outline:none;font-size:14px" onkeydown="if(event.key==='Enter')agregarItem()">
-          <button class="btn btn-accent btn-sm" onclick="agregarItem()">+</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <select id="nuevaCatSelect" style="flex:1;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);outline:none;font-size:13px">
+            ${CATS_COMPRA.map(c=>`<option value="${c}">${c}</option>`).join('')}
+          </select>
+          <button class="btn btn-accent btn-sm" onclick="agregarItem()">+ Agregar</button>
         </div>
         ${pendientes.length?`<div style="margin-bottom:12px">
           <button class="btn btn-ghost btn-sm" style="width:100%" onclick="exportarListaComprasPDF()">📄 Exportar lista para imprimir</button>
         </div>`:''}
         <div class="card">
-          ${pendientes.length?pendientes.map(it=>`
-            <div class="lista-item">
-              <div class="lista-check" onclick="toggleItem('compras','${it.id}')">✓</div>
-              <div class="lista-item-text">${it.texto}</div>
-              <div style="font-size:11px;color:var(--text3)">${it.usuario}</div>
-              ${esAdmin||it.usuario===state.user?`<button onclick="eliminarItem('compras','${it.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0 4px">✕</button>`:''}
+          ${pendientes.length?gruposOrdenados.map(([cat,items])=>`
+            <div style="margin-bottom:4px">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);padding:8px 0 4px;border-bottom:1px solid var(--border)">${cat}</div>
+              ${items.map(it=>`
+                <div class="lista-item">
+                  <div class="lista-check" onclick="toggleItem('compras','${it.id}')">✓</div>
+                  <div class="lista-item-text" style="flex:1">${it.texto}</div>
+                  <div style="font-size:11px;color:var(--text3);margin-right:4px">${it.usuario}</div>
+                  ${esAdmin||it.usuario===state.user?`<button onclick="editarItemCompra('${it.id}')" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:0 4px">✎</button><button onclick="eliminarItem('compras','${it.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0 4px">✕</button>`:''}
+                </div>`).join('')}
             </div>`).join(''):'<div class="empty-state"><div class="emoji">✅</div><p>Lista vacía — agregá algo</p></div>'}
         </div>
         ${hechos.length?`<div class="card" style="margin-top:10px;opacity:.6">
@@ -1401,10 +1419,26 @@ function initListas(){if(!state.config.listas)state.config.listas={compras:[],de
 function agregarItem(){
   const input=document.getElementById('nuevoItemInput');
   const texto=input?.value.trim();
+  const cat=document.getElementById('nuevaCatSelect')?.value||'Otros';
   if(!texto)return;
   initListas();
-  state.config.listas.compras.push({id:'i'+Date.now(),texto,usuario:state.user,done:false,fecha:new Date().toISOString()});
+  state.config.listas.compras.push({id:'i'+Date.now(),texto,categoria:cat,usuario:state.user,done:false,fecha:new Date().toISOString()});
   saveConfig().then(()=>{toast('Ítem agregado ✓');render.listas();});
+}
+
+function editarItemCompra(id){
+  const CATS_COMPRA=['Almacén / Despensa','Carnes','Frutas y Verduras','Lácteos','Panadería y Galletitas','Bebidas','Limpieza','Higiene personal','Indumentaria y Calzado','Congelados','Mascotas','Otros'];
+  const item=state.config.listas?.compras?.find(i=>i.id===id);
+  if(!item)return;
+  const nuevoTexto=prompt('Editar ítem:',item.texto);
+  if(!nuevoTexto?.trim())return;
+  const catActual=CATS_COMPRA.indexOf(item.categoria);
+  const catOpts=CATS_COMPRA.map((c,i)=>`${i+1}. ${c}`).join('\n');
+  const nuevaCatNum=prompt(`Categoría actual: ${item.categoria}\n\n${catOpts}\n\nEscribí el número de la nueva categoría (Enter para mantener):`, catActual>=0?catActual+1:'');
+  const nuevaCat=nuevaCatNum&&CATS_COMPRA[parseInt(nuevaCatNum)-1]?CATS_COMPRA[parseInt(nuevaCatNum)-1]:item.categoria;
+  item.texto=nuevoTexto.trim();
+  item.categoria=nuevaCat;
+  saveConfig().then(()=>{toast('Ítem actualizado ✓');render.listas();});
 }
 
 function agregarDeseo(){
@@ -1461,6 +1495,7 @@ function limpiarComprados(){
 window.cambiarListaTipo=cambiarListaTipo;window.agregarItem=agregarItem;
 window.agregarDeseo=agregarDeseo;window.agregarProyecto=agregarProyecto;
 window.toggleItem=toggleItem;window.eliminarItem=eliminarItem;window.limpiarComprados=limpiarComprados;
+window.editarItemCompra=editarItemCompra;
 
 // ASISTENTE CHAT
 let chatHistory=[];
@@ -1651,28 +1686,10 @@ function exportarListaComprasPDF(){
   doc.setTextColor(180,180,180);
   doc.setFontSize(9);doc.setFont('helvetica','normal');
   doc.text(`Generada: ${new Date().toLocaleDateString('es-AR')} · ${pendientes.length} ítems`,14,20);
-  // Agrupar por categoría del ítem (basado en texto — buscamos coincidencias en categorías)
-  const GRUPOS={
-    'Carnes':['pollo','carne','bife','milanesa','chorizo','salchicha','cerdo','pescado','atun','fiambre','jamon','salame','mortadela','paleta','lomito','cordero','lomo','asado','costilla','vacío','vacio'],
-    'Frutas y Verduras':['manzana','banana','naranja','pera','limon','lechuga','tomate','papa','cebolla','ajo','zanahoria','verdura','fruta','morron','zapallo','zucchini','acelga','espinaca','brocoli','pepino','remolacha','choclo','mandarina','uva','frutilla','durazno','ciruela'],
-    'Lácteos':['leche','yogur','queso','crema','manteca','cacao','ricota','dulce de leche','flan','postre','danette','serenito'],
-    'Panadería y Galletitas':['pan ','facturas','medialuna','tortilla','tostada','bizcocho','galletita','galleta','crackers','alfajor','vainilla','oblea','wafer','budin','prepizza','tapa empanada'],
-    'Bebidas':['agua','gaseosa','jugo','vino','cerveza','bebida','soda','fernet','whisky','vodka','gin','energizante','sprite','coca cola','pepsi'],
-    'Limpieza':['lavandina','detergente','jabon lavarropas','jabon ropa','suavizante','limpiador','desengrasante','escoba','trapo','bolsa basura','papel higienico','servilleta','rollo cocina','quitamanchas','lustramuebles','insecticida','antigrasa','esponja','virulana','rejilla','plumero','pala','secador','lampazo','lavaplatos','lavavajilla','ajax','pinesol','lysoform'],
-    'Higiene personal':['shampoo','acondicionador','desodorante','pasta dental','cepillo','afeitadora','perfume','maquillaje','jabon baño','gel','mousse','toalla femenina','algodon','hilo dental'],
-    'Indumentaria y Calzado':['remera','pantalon','jean','calzado','zapatilla','zapato','medias','bombacha','calzoncillo','campera','abrigo','vestido','pollera','short','bermuda','pijama','buzo','camiseta','chomba'],
-    'Almacén / Despensa':['arroz','fideos','aceite','harina','azucar','sal','vinagre','salsa','lata','conserva','cereal','avena','lenteja','garbanzo','poroto','maiz','polenta','pure','caldo','mayonesa','ketchup','mostaza','mermelada','miel','cafe','yerba','mate','almidón','levadura','gelatina','sopa'],
-    'Congelados':['helado','pizza','empanada congelada','congelado','surimi','nuggets'],
-    'Mascotas':['purina','pedigree','whiskas','alimento perro','alimento gato','arena gato','hueso perro'],
-  };
-  // Asignar grupo a cada ítem
+  // Agrupar por categoría guardada en cada ítem
   const agrupados={};
   pendientes.forEach(it=>{
-    let grupo='Otros';
-    const txt=it.texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    for(const [g,palabras] of Object.entries(GRUPOS)){
-      if(palabras.some(p=>txt.includes(p.normalize('NFD').replace(/[\u0300-\u036f]/g,'')))){grupo=g;break;}
-    }
+    const grupo=it.categoria||'Otros';
     if(!agrupados[grupo]) agrupados[grupo]=[];
     agrupados[grupo].push(it);
   });
