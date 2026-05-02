@@ -1233,30 +1233,53 @@ const TEMAS={
   cafe:     {bg:'#1a1008',bg2:'#2a1a0a',bg3:'#382212',bg4:'#442a18',border:'#5a3a20',border2:'#6a4a2a',text:'#f5e8d0',text2:'#c0996a',text3:'#997755',accent:'#ffaa5a',accent2:'#ee8a3a'},
 };
 
-function aplicarTema(id){
+function aplicarTema(id, guardar=true){
   const t=TEMAS[id];
   if(!t)return;
-  const root=document.documentElement;
-  root.style.setProperty('--bg',t.bg);
-  root.style.setProperty('--bg2',t.bg2);
-  root.style.setProperty('--bg3',t.bg3);
-  root.style.setProperty('--bg4',t.bg4);
-  root.style.setProperty('--border',t.border);
-  root.style.setProperty('--border2',t.border2);
-  root.style.setProperty('--text',t.text);
-  root.style.setProperty('--text2',t.text2);
-  root.style.setProperty('--text3',t.text3);
-  root.style.setProperty('--accent',t.accent);
-  root.style.setProperty('--accent2',t.accent2);
-  // Guardar en usuario
-  state.config.users[state.user].tema=id;
-  saveConfig().then(()=>{toast('Tema aplicado ✓');render.perfil();});
+  // Inyectar estilos directamente en un <style> tag para máxima prioridad
+  let styleEl=document.getElementById('temaStyle');
+  if(!styleEl){styleEl=document.createElement('style');styleEl.id='temaStyle';document.head.appendChild(styleEl);}
+  styleEl.textContent=`
+    :root, body, #app, #loginScreen {
+      --bg:${t.bg} !important;
+      --bg2:${t.bg2} !important;
+      --bg3:${t.bg3} !important;
+      --bg4:${t.bg4} !important;
+      --border:${t.border} !important;
+      --border2:${t.border2} !important;
+      --text:${t.text} !important;
+      --text2:${t.text2} !important;
+      --text3:${t.text3} !important;
+      --accent:${t.accent} !important;
+      --accent2:${t.accent2} !important;
+    }
+    body { background:${t.bg} !important; color:${t.text} !important; }
+    .card, .card-sm { background:${t.bg2} !important; border-color:${t.border} !important; }
+    .topbar, .nav { background:${t.bg} !important; border-color:${t.border} !important; }
+    .nav-btn { color:${t.text2} !important; }
+    .nav-btn.active { color:${t.accent} !important; border-color:${t.accent} !important; }
+    .btn-accent { background:${t.accent} !important; color:${id==='claro'?'#fff':t.bg} !important; }
+    .field input, .field select, .field textarea { background:${t.bg2} !important; color:${t.text} !important; border-color:${t.border2} !important; }
+    .modal { background:${t.bg2} !important; }
+    .msg-user { background:${t.accent} !important; color:${id==='claro'?'#fff':t.bg} !important; }
+    .msg-bot { background:${t.bg2} !important; border-color:${t.border} !important; color:${t.text} !important; }
+    .chat-input { background:${t.bg2} !important; border-color:${t.border2} !important; color:${t.text} !important; }
+    .chat-send { background:${t.accent} !important; }
+    .fab { background:${t.accent} !important; color:${id==='claro'?'#fff':t.bg} !important; }
+    .lista-tab.active { background:${t.accent} !important; color:${id==='claro'?'#fff':t.bg} !important; }
+    .metric-value { color:${t.text} !important; }
+  `;
+  if(guardar && state.user){
+    state.config.users[state.user].tema=id;
+    saveConfig().then(()=>toast('Tema aplicado ✓'));
+    render.perfil();
+  }
 }
 
 function cargarTema(){
   const u=state.user;
   const id=state.config.users[u]?.tema||'oscuro';
-  if(id!=='oscuro') aplicarTema(id);
+  aplicarTema(id, false);
 }
 const COLORES_USUARIO=['#e8ff5a','#5affaa','#5aaeff','#aa5aff','#ffaa5a','#ff5a5a','#5affee','#ff5aee','#aaffaa','#ffee5a','#5a8aff','#ff8a5a'];
 let uRolSel='user', uAportaSel=true, uColorSel='#5aaeff';
@@ -2013,32 +2036,4 @@ function cerrarDetalleCat(){
 }
 
 window.adminEditPass=adminEditPass;window.adminAddCat=adminAddCat;window.adminDelCat=adminDelCat;
-window.adminNuevoUsuario=adminNuevoUsuario;window.adminEditUsuario=adminEditUsuario;
-window.aplicarTema=aplicarTema;
-window.adminDelUsuario=adminDelUsuario;window.cerrarModalUsuario=cerrarModalUsuario;
-window.selURol=selURol;window.selUAporta=selUAporta;window.selUColor=selUColor;window.guardarUsuario=guardarUsuario;
-window.adminAddSugerencia=adminAddSugerencia;window.adminEditSugerencia=adminEditSugerencia;window.adminDelSugerencia=adminDelSugerencia;
-window.cerrarModalCat=cerrarModalCat;window.selNcTipo=selNcTipo;window.selNcEmoji=selNcEmoji;window.guardarNuevaCat=guardarNuevaCat;
-
-// DRAG TO SCROLL NAV (desktop)
-(()=>{
-  const nav=document.getElementById('mainNav');
-  if(!nav)return;
-  let isDown=false,startX,scrollLeft;
-  nav.addEventListener('mousedown',e=>{isDown=true;nav.style.cursor='grabbing';startX=e.pageX-nav.offsetLeft;scrollLeft=nav.scrollLeft;});
-  nav.addEventListener('mouseleave',()=>{isDown=false;nav.style.cursor='grab';});
-  nav.addEventListener('mouseup',()=>{isDown=false;nav.style.cursor='grab';});
-  nav.addEventListener('mousemove',e=>{if(!isDown)return;e.preventDefault();const x=e.pageX-nav.offsetLeft;nav.scrollLeft=scrollLeft-(x-startX)*1.5;});
-})();
-
-// BOOT — limpiar fotos viejas de localStorage
-try{Object.keys(localStorage).filter(k=>k.startsWith('foto_')||k.startsWith('gf_foto_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
-loadConfig().then(()=>{renderLogin();setSyncStatus(false);});
-
-// SERVICE WORKER para PWA
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').catch(()=>{});
-}
-</script>
-</body>
-</html>
+window.adminNuevoUsuario=adminNuevoUsuario;window.adminEditU
