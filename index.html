@@ -692,6 +692,9 @@ const render = {
         <span>${MESES[state.mes]} ${state.anio}</span>
         <button class="btn btn-ghost btn-sm" onclick="cambiarMes(1)">▶</button>
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="exportarGraficosPDF()">📄 Informe PDF</button>
+      </div>
       <div class="card" style="margin-bottom:12px">
         <div class="section-title">Por categoría (este mes)</div>
         <div class="chart-wrap"><canvas id="chartCat"></canvas></div>
@@ -823,6 +826,9 @@ const render = {
           <input type="text" id="nuevoItemInput" placeholder="Agregar ítem..." style="flex:1;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);outline:none;font-size:14px" onkeydown="if(event.key==='Enter')agregarItem()">
           <button class="btn btn-accent btn-sm" onclick="agregarItem()">+</button>
         </div>
+        ${pendientes.length?`<div style="margin-bottom:12px">
+          <button class="btn btn-ghost btn-sm" style="width:100%" onclick="exportarListaComprasPDF()">📄 Exportar lista para imprimir</button>
+        </div>`:''}
         <div class="card">
           ${pendientes.length?pendientes.map(it=>`
             <div class="lista-item">
@@ -1627,6 +1633,146 @@ window.cambiarMes=cambiarMes;window.cambiarPass=cambiarPass;
 window.toggleVerPass=toggleVerPass;window.subirFoto=subirFoto;window.quitarFoto=quitarFoto;
 window.abrirDetalleCat=abrirDetalleCat;window.cerrarDetalleCat=cerrarDetalleCat;
 window.exportarPDF=exportarPDF;window.exportarExcel=exportarExcel;
+window.exportarListaComprasPDF=exportarListaComprasPDF;window.exportarGraficosPDF=exportarGraficosPDF;
+
+function exportarListaComprasPDF(){
+  const {jsPDF}=window.jspdf;
+  if(!jsPDF){toast('Librería PDF no cargada');return;}
+  const listas=state.config.listas||{};
+  const pendientes=(listas.compras||[]).filter(i=>!i.done);
+  if(!pendientes.length){toast('No hay ítems pendientes para exportar');return;}
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  // Header
+  doc.setFillColor(15,15,15);
+  doc.rect(0,0,210,28,'F');
+  doc.setTextColor(232,255,90);
+  doc.setFontSize(16);doc.setFont('helvetica','bold');
+  doc.text('Lista de compras',14,12);
+  doc.setTextColor(180,180,180);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');
+  doc.text(`Generada: ${new Date().toLocaleDateString('es-AR')} · ${pendientes.length} ítems`,14,20);
+  // Agrupar por categoría del ítem (basado en texto — buscamos coincidencias en categorías)
+  const GRUPOS={
+    'Panadería y Galletitas':['pan','facturas','medialuna','tortilla','tostada','bizcocho','galletita','galleta','crackers','alfajor','vainilla','oblea','wafer','budín','budin','prepizzas','prepizza','tapa','empanada'],
+    'Lácteos':['leche','yogur','queso','crema','manteca','cacao','ricota','dulce de leche','flan','postre','danette','serenito'],
+    'Carnes':['pollo','carne','bife','milanesa','chorizo','salchicha','cerdo','pescado','atun','fiambre','jamon','salame','mortadela','paleta','lomito','cordero','lomo','asado','costilla','vacío','vacio'],
+    'Frutas y Verduras':['manzana','banana','naranja','pera','limón','limon','lechuga','tomate','papa','cebolla','ajo','zanahoria','verdura','fruta','morrón','morron','zapallo','zucchini','acelga','espinaca','brócoli','brocoli','pepino','remolacha','choclo','mandarina','uva','frutilla','durazno','ciruela'],
+    'Almacén / Despensa':['arroz','fideos','aceite','harina','azúcar','azucar','sal','vinagre','salsa','lata','conserva','cereal','avena','legumbre','lenteja','garbanzo','poroto','maíz','maiz','polenta','puré','pure','caldo','mayonesa','ketchup','mostaza','mermelada','dulce','miel','café','cafe','té','te','mate','yerba','azucar','almidón','almidon','levadura','bicarbonato','gelatina','sopa'],
+    'Bebidas':['agua','gaseosa','jugo','vino','cerveza','bebida','soda','fernet','whisky','vodka','gin','energizante','limonada','tónica','tonica','sprite','coca','pepsi','seven'],
+    'Limpieza':['lavandina','detergente','jabón ropa','jabon ropa','limpiador','desengrasante','escoba','trapo','bolsa','papel higienico','servilleta','rollo','suavizante','quitamanchas','lustramuebles','desodorante ambiente','insecticida','antigrasa','esponja','virulana','rejilla','plumero','pala'],
+    'Higiene personal':['shampoo','acondicionador','desodorante','crema','pasta dental','cepillo','afeitadora','perfume','maquillaje','jabón baño','jabon baño','gel','mousse','toalla','femenino','algodón','algodon','hilo dental'],
+    'Congelados':['helado','pizza','empanada congelada','congelado','surimi','nuggets','bastones'],
+    'Mascotas':['purina','pedigree','whiskas','alimento perro','alimento gato','arena gato','hueso','snack perro','collar'],
+  };
+  // Asignar grupo a cada ítem
+  const agrupados={};
+  pendientes.forEach(it=>{
+    let grupo='Otros';
+    const txt=it.texto.toLowerCase();
+    for(const [g,palabras] of Object.entries(GRUPOS)){
+      if(palabras.some(p=>txt.includes(p))){grupo=g;break;}
+    }
+    if(!agrupados[grupo]) agrupados[grupo]=[];
+    agrupados[grupo].push(it);
+  });
+  let yPos=36;
+  const grupos=Object.entries(agrupados).sort((a,b)=>a[0].localeCompare(b[0]));
+  grupos.forEach(([grupo,items])=>{
+    // Título del grupo
+    if(yPos>270){doc.addPage();yPos=14;}
+    doc.setFillColor(232,255,90);
+    doc.rect(14,yPos,182,7,'F');
+    doc.setTextColor(15,15,15);
+    doc.setFont('helvetica','bold');doc.setFontSize(10);
+    doc.text(grupo,16,yPos+5);
+    yPos+=10;
+    // Ítems del grupo
+    items.forEach(it=>{
+      if(yPos>275){doc.addPage();yPos=14;}
+      doc.setDrawColor(200,200,200);
+      doc.rect(14,yPos,5,5);
+      doc.setTextColor(30,30,30);
+      doc.setFont('helvetica','normal');doc.setFontSize(10);
+      doc.text(it.texto,22,yPos+4);
+      doc.setTextColor(150,150,150);doc.setFontSize(8);
+      doc.text(it.usuario,180,yPos+4,'right');
+      yPos+=8;
+    });
+    yPos+=4;
+  });
+  // Footer
+  doc.setFontSize(8);doc.setTextColor(150);
+  doc.text('gastos.familia',14,290);
+  doc.save(`lista-compras-${new Date().toLocaleDateString('es-AR').replace(/\//g,'-')}.pdf`);
+  toast('Lista exportada ✓');
+}
+
+function exportarGraficosPDF(){
+  const {jsPDF}=window.jspdf;
+  if(!jsPDF){toast('Librería PDF no cargada');return;}
+  const u=state.user, m=state.mes, a=state.anio;
+  const mesLabel=MESES[m]+' '+a;
+  const mis=gastosMes(u,m,a);
+  const totalMio=mis.reduce((s,g)=>s+g.monto,0);
+  const casaG=gastosMes(null,m,a,'casa');
+  const totalCasa=casaG.reduce((s,g)=>s+g.monto,0);
+  const grupoG=gastosMes(null,m,a);
+  const totalGrupo=grupoG.reduce((s,g)=>s+g.monto,0);
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  // Header
+  doc.setFillColor(15,15,15);
+  doc.rect(0,0,210,32,'F');
+  doc.setTextColor(232,255,90);
+  doc.setFontSize(18);doc.setFont('helvetica','bold');
+  doc.text('gastos.familia',14,14);
+  doc.setTextColor(200,200,200);
+  doc.setFontSize(10);doc.setFont('helvetica','normal');
+  doc.text(`Informe de ${mesLabel} — ${u}`,14,22);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-AR')}`,14,28);
+  let yPos=40;
+  // Resumen general
+  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(30,30,30);
+  doc.text('Resumen del mes',14,yPos);yPos+=8;
+  const resumen=[
+    ['Mis gastos totales',fmt(totalMio)],
+    ['Mi aporte a la casa',fmt(casaG.filter(g=>g.usuario===u).reduce((s,g)=>s+g.monto,0))],
+    ['Total gastos de casa',fmt(totalCasa)],
+    ['Total del grupo familiar',fmt(totalGrupo)],
+  ];
+  doc.autoTable({startY:yPos,head:[['Concepto','Monto']],body:resumen,styles:{fontSize:10,cellPadding:3},headStyles:{fillColor:[30,30,30],textColor:[232,255,90],fontStyle:'bold'},columnStyles:{1:{halign:'right',fontStyle:'bold'}},margin:{left:14,right:14}});
+  yPos=doc.lastAutoTable.finalY+10;
+  // Mis gastos por categoría
+  const byCat={};
+  mis.forEach(g=>{const c=catById(g.catId).nombre;byCat[c]=(byCat[c]||0)+g.monto;});
+  const catRows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,mo])=>[c,fmt(mo),totalMio?Math.round(mo/totalMio*100)+'%':'0%']);
+  if(catRows.length){
+    doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(30,30,30);
+    doc.text('Mis gastos por categoría',14,yPos);yPos+=6;
+    doc.autoTable({startY:yPos,head:[['Categoría','Monto','%']],body:catRows,styles:{fontSize:9,cellPadding:3},headStyles:{fillColor:[30,30,30],textColor:[232,255,90],fontStyle:'bold'},columnStyles:{1:{halign:'right'},2:{halign:'center'}},margin:{left:14,right:14}});
+    yPos=doc.lastAutoTable.finalY+10;
+  }
+  // Evolución 6 meses
+  const hist=[];
+  for(let i=5;i>=0;i--){let mm=m-i,aa=a;if(mm<0){mm+=12;aa--;}const t=gastosMes(u,mm,aa).reduce((s,g)=>s+g.monto,0);hist.push([MESES[mm]+' '+aa,fmt(t)]);}
+  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(30,30,30);
+  doc.text('Evolución últimos 6 meses',14,yPos);yPos+=6;
+  doc.autoTable({startY:yPos,head:[['Mes','Total mis gastos']],body:hist,styles:{fontSize:9,cellPadding:3},headStyles:{fillColor:[30,30,30],textColor:[232,255,90],fontStyle:'bold'},columnStyles:{1:{halign:'right'}},margin:{left:14,right:14}});
+  // Aporte por persona (si es admin)
+  if(state.config.users[u]?.rol==='admin'){
+    yPos=doc.lastAutoTable.finalY+10;
+    const personaRows=Object.keys(state.config.users).map(p=>{
+      const ap=grupoG.filter(g=>g.usuario===p).reduce((s,g)=>s+g.monto,0);
+      return [p,fmt(ap),totalGrupo?Math.round(ap/totalGrupo*100)+'%':'0%'];
+    });
+    doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(30,30,30);
+    doc.text('Gastos por persona',14,yPos);yPos+=6;
+    doc.autoTable({startY:yPos,head:[['Persona','Total','%']],body:personaRows,styles:{fontSize:9,cellPadding:3},headStyles:{fillColor:[30,30,30],textColor:[232,255,90],fontStyle:'bold'},columnStyles:{1:{halign:'right'},2:{halign:'center'}},margin:{left:14,right:14}});
+  }
+  doc.setFontSize(8);doc.setTextColor(150);
+  doc.text(`gastos.familia — ${mesLabel}`,14,290);
+  doc.save(`informe-graficos-${MESES[m].toLowerCase()}-${a}.pdf`);
+  toast('Informe exportado ✓');
+}
 // DETALLE CATEGORIA
 let chartDetalle=null;
 function abrirDetalleCat(catNombre,color,u,m,a){
