@@ -1653,17 +1653,17 @@ function exportarListaComprasPDF(){
   doc.text(`Generada: ${new Date().toLocaleDateString('es-AR')} · ${pendientes.length} ítems`,14,20);
   // Agrupar por categoría del ítem (basado en texto — buscamos coincidencias en categorías)
   const GRUPOS={
-    'Panadería y Galletitas':['pan','facturas','medialuna','tortilla','tostada','bizcocho','galletita','galleta','crackers','alfajor','vainilla','oblea','wafer','budín','budin','prepizzas','prepizza','tapa','empanada'],
-    'Lácteos':['leche','yogur','queso','crema','manteca','cacao','ricota','dulce de leche','flan','postre','danette','serenito'],
     'Carnes':['pollo','carne','bife','milanesa','chorizo','salchicha','cerdo','pescado','atun','fiambre','jamon','salame','mortadela','paleta','lomito','cordero','lomo','asado','costilla','vacío','vacio'],
-    'Frutas y Verduras':['manzana','banana','naranja','pera','limón','limon','lechuga','tomate','papa','cebolla','ajo','zanahoria','verdura','fruta','morrón','morron','zapallo','zucchini','acelga','espinaca','brócoli','brocoli','pepino','remolacha','choclo','mandarina','uva','frutilla','durazno','ciruela'],
-    'Almacén / Despensa':['arroz','fideos','aceite','harina','azúcar','azucar','sal','vinagre','salsa','lata','conserva','cereal','avena','legumbre','lenteja','garbanzo','poroto','maíz','maiz','polenta','puré','pure','caldo','mayonesa','ketchup','mostaza','mermelada','dulce','miel','café','cafe','té','te','mate','yerba','azucar','almidón','almidon','levadura','bicarbonato','gelatina','sopa'],
-    'Bebidas':['agua','gaseosa','jugo','vino','cerveza','bebida','soda','fernet','whisky','vodka','gin','energizante','limonada','tónica','tonica','sprite','coca','pepsi','seven'],
-    'Indumentaria y Calzado':['ropa','remera','pantalon','pantalón','jean','calzado','zapatilla','zapato','medias','ropa interior','bombacha','calzoncillo','campera','abrigo','vestido','pollera','short','bermuda','pijama','buzo','camiseta','chomba'],
-    'Limpieza':['lavandina','detergente','jabon ropa','jabón ropa','limpiador','desengrasante','escoba','trapo','bolsa basura','papel higienico','servilleta','rollo cocina','suavizante','quitamanchas','lustramuebles','desodorante ambiente','insecticida','antigrasa','esponja','virulana','rejilla','plumero','pala','secador','lampazo','lavaplatos','lavavajilla','ajax','pinesol','blem','lysoform'],
-    'Higiene personal':['shampoo','acondicionador','desodorante','crema','pasta dental','cepillo','afeitadora','perfume','maquillaje','jabón baño','jabon baño','gel','mousse','toalla','femenino','algodón','algodon','hilo dental'],
-    'Congelados':['helado','pizza','empanada congelada','congelado','surimi','nuggets','bastones'],
-    'Mascotas':['purina','pedigree','whiskas','alimento perro','alimento gato','arena gato','hueso','snack perro','collar'],
+    'Frutas y Verduras':['manzana','banana','naranja','pera','limon','lechuga','tomate','papa','cebolla','ajo','zanahoria','verdura','fruta','morron','zapallo','zucchini','acelga','espinaca','brocoli','pepino','remolacha','choclo','mandarina','uva','frutilla','durazno','ciruela'],
+    'Lácteos':['leche','yogur','queso','crema','manteca','cacao','ricota','dulce de leche','flan','postre','danette','serenito'],
+    'Panadería y Galletitas':['pan ','facturas','medialuna','tortilla','tostada','bizcocho','galletita','galleta','crackers','alfajor','vainilla','oblea','wafer','budin','prepizza','tapa empanada'],
+    'Bebidas':['agua','gaseosa','jugo','vino','cerveza','bebida','soda','fernet','whisky','vodka','gin','energizante','sprite','coca cola','pepsi'],
+    'Limpieza':['lavandina','detergente','jabon lavarropas','jabon ropa','suavizante','limpiador','desengrasante','escoba','trapo','bolsa basura','papel higienico','servilleta','rollo cocina','quitamanchas','lustramuebles','insecticida','antigrasa','esponja','virulana','rejilla','plumero','pala','secador','lampazo','lavaplatos','lavavajilla','ajax','pinesol','lysoform'],
+    'Higiene personal':['shampoo','acondicionador','desodorante','pasta dental','cepillo','afeitadora','perfume','maquillaje','jabon baño','gel','mousse','toalla femenina','algodon','hilo dental'],
+    'Indumentaria y Calzado':['remera','pantalon','jean','calzado','zapatilla','zapato','medias','bombacha','calzoncillo','campera','abrigo','vestido','pollera','short','bermuda','pijama','buzo','camiseta','chomba'],
+    'Almacén / Despensa':['arroz','fideos','aceite','harina','azucar','sal','vinagre','salsa','lata','conserva','cereal','avena','lenteja','garbanzo','poroto','maiz','polenta','pure','caldo','mayonesa','ketchup','mostaza','mermelada','miel','cafe','yerba','mate','almidón','levadura','gelatina','sopa'],
+    'Congelados':['helado','pizza','empanada congelada','congelado','surimi','nuggets'],
+    'Mascotas':['purina','pedigree','whiskas','alimento perro','alimento gato','arena gato','hueso perro'],
   };
   // Asignar grupo a cada ítem
   const agrupados={};
