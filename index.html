@@ -429,6 +429,12 @@ async function loadConfig(){
     if(snap.exists()){
       state.config = snap.data();
       if(!state.config.sugerencias) state.config.sugerencias = DEFAULT_SUGERENCIAS;
+      // Limpiar fotos del config de Firebase (causan que el doc supere 1MB)
+      let needSave=false;
+      Object.keys(state.config.users||{}).forEach(u=>{
+        if(state.config.users[u].foto){delete state.config.users[u].foto;needSave=true;}
+      });
+      if(needSave) saveConfig();
     } else await saveConfig();
   }catch(e){console.log('Config local')}
 }
@@ -1080,8 +1086,15 @@ function toggleVerPass(){
   else{inp.type='password';btn.textContent='👁 Ver';}
 }
 
-// FOTOS — guardadas en Firebase config, comprimidas a tamaño mínimo
-function getFoto(u){return state.config.users[u]?.foto||null;}
+// FOTOS — localStorage por dispositivo (Firebase tiene límite 1MB por doc)
+function getFoto(u){
+  // Primero localStorage, luego config (migración)
+  try{
+    const ls=localStorage.getItem('gf_foto2_'+u);
+    if(ls) return ls;
+  }catch(e){}
+  return null;
+}
 
 function subirFoto(event){
   const file=event.target.files[0];
@@ -1090,38 +1103,39 @@ function subirFoto(event){
   const url=URL.createObjectURL(file);
   img.onload=()=>{
     const canvas=document.createElement('canvas');
-    // Muy pequeño para que entre en Firebase (80x80px)
     const size=80;
     canvas.width=size;canvas.height=size;
     const ctx=canvas.getContext('2d');
     const min=Math.min(img.width,img.height);
     const sx=(img.width-min)/2, sy=(img.height-min)/2;
     ctx.drawImage(img,sx,sy,min,min,0,0,size,size);
-    // Calidad muy baja = tamaño muy pequeño (~5-8KB)
-    const dataUrl=canvas.toDataURL('image/jpeg',0.4);
+    const dataUrl=canvas.toDataURL('image/jpeg',0.5);
     URL.revokeObjectURL(url);
-    state.config.users[state.user].foto=dataUrl;
-    saveConfig().then(()=>{
-      toast('✓ Foto guardada en la nube');
+    try{
+      localStorage.setItem('gf_foto2_'+state.user, dataUrl);
+      toast('✓ Foto guardada');
       updateTopAvatar();
       render.perfil();
-    }).catch(()=>toast('Error al guardar foto'));
+    }catch(e){toast('Foto muy grande, probá una más chica');}
   };
   img.src=url;
 }
 
 function quitarFoto(){
-  delete state.config.users[state.user].foto;
-  saveConfig().then(()=>{
-    toast('Foto quitada');
-    updateTopAvatar();
-    render.perfil();
-  });
+  try{localStorage.removeItem('gf_foto2_'+state.user);}catch(e){}
+  // También limpiar si había en Firebase
+  if(state.config.users[state.user]?.foto){
+    delete state.config.users[state.user].foto;
+    saveConfig();
+  }
+  toast('Foto quitada');
+  updateTopAvatar();
+  render.perfil();
 }
 
 function updateTopAvatar(){
   const u=state.user, ud=state.config.users[u];
-  const foto=getFoto(u);
+  const foto=getFoto(u)||ud?.foto||null;
   const av=document.getElementById('topAvatar');
   if(!av)return;
   if(foto){
@@ -1846,4 +1860,12 @@ window.cerrarModalCat=cerrarModalCat;window.selNcTipo=selNcTipo;window.selNcEmoj
 
 // BOOT — limpiar fotos viejas de localStorage
 try{Object.keys(localStorage).filter(k=>k.startsWith('foto_')||k.startsWith('gf_foto_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
-loadConfig().then(()=>{renderLogin
+loadConfig().then(()=>{renderLogin();setSyncStatus(false);});
+
+// SERVICE WORKER para PWA
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
