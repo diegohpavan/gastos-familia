@@ -223,7 +223,11 @@ input:checked+.slider:before{transform:translateX(18px);background:#0f0f0f}
         <div class="topbar-month" id="topMonth"></div>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="position:relative;cursor:pointer" onclick="showTab('notificaciones')" id="bellWrap">
+        <span style="font-size:20px">🔔</span>
+        <div id="bellBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center"></div>
+      </div>
       <div id="syncStatus" style="width:8px;height:8px;border-radius:50%;background:var(--text3)" title="Sin conexión"></div>
     </div>
   </div>
@@ -236,6 +240,7 @@ input:checked+.slider:before{transform:translateX(18px);background:#0f0f0f}
     <button class="nav-btn" onclick="showTab('asistente')" style="border-top:3px solid #ffaa5a"><span>🤖</span>Asistente</button>
     <button class="nav-btn" onclick="showTab('listas')" style="border-top:3px solid #5affee"><span>📝</span>Listas</button>
     <button class="nav-btn" id="navAdmin" style="display:none;border-top:3px solid #ff5a5a" onclick="showTab('admin')"><span>⚙️</span>Admin</button>
+    <button class="nav-btn" id="navNotif" style="border-top:3px solid #ff5aee" onclick="showTab('notificaciones')"><span>🔔</span>Novedades</button>
   </div>
   <div class="content" id="mainContent"></div>
 </div>
@@ -486,6 +491,7 @@ function startGastosListener(){
   state.unsub = onSnapshot(q, snap=>{
     state.gastos = snap.docs.map(d=>({id:d.id,...d.data()}));
     setSyncStatus(true);
+    actualizarBadge();
     renderCurrentTab();
   }, err=>{
     setSyncStatus(false);
@@ -566,6 +572,7 @@ function initApp(){
   updateTopAvatar();
   document.getElementById('navAdmin').style.display=ud.rol==='admin'?'':'none';
   document.getElementById('navGrupo').style.display=ud.rol==='admin'?'':'none';
+  initNotificaciones();
   cargarTema();
   showTab('inicio');
 }
@@ -579,7 +586,7 @@ let currentTab = 'inicio';
 function showTab(tab){
   currentTab=tab;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  const map={inicio:0,gastos:1,grupo:2,casa:3,graficos:4,asistente:5,listas:6,admin:7,perfil:-1};
+  const map={inicio:0,gastos:1,grupo:2,casa:3,graficos:4,asistente:5,listas:6,admin:7,notificaciones:8,perfil:-1};
   const navBtns=document.querySelectorAll('.nav-btn');
   if(map[tab]>=0&&navBtns[map[tab]]) navBtns[map[tab]].classList.add('active');
   const fab=document.getElementById('fabBtn');
@@ -620,7 +627,9 @@ const render = {
   },
   gastos(){
     const u=state.user, m=state.mes, a=state.anio;
-    const gastos=gastosMes(u,m,a);
+    const busqueda=state.busquedaGastos||'';
+    let gastos=gastosMes(u,m,a);
+    if(busqueda) gastos=gastos.filter(g=>g.desc.toLowerCase().includes(busqueda.toLowerCase())||catById(g.catId).nombre.toLowerCase().includes(busqueda.toLowerCase()));
     const total=gastos.reduce((s,g)=>s+g.monto,0);
     const sorted=[...gastos].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
     document.getElementById('mainContent').innerHTML=`
@@ -629,8 +638,12 @@ const render = {
         <span>${MESES[state.mes]} ${state.anio}</span>
         <button class="btn btn-ghost btn-sm" onclick="cambiarMes(1)">▶</button>
       </div>
+      <div style="position:relative;margin-bottom:12px">
+        <input type="text" placeholder="🔍 Buscar gastos..." value="${busqueda}" oninput="buscarGastos(this.value,'gastos')" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);outline:none;font-size:14px">
+        ${busqueda?`<button onclick="buscarGastos('','gastos')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px">✕</button>`:''}
+      </div>
       <div class="card-sm" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:13px;color:var(--text2)">Total mis gastos</div>
+        <div style="font-size:13px;color:var(--text2)">${busqueda?`"${busqueda}" — ${gastos.length} resultado${gastos.length!==1?'s':''}`:' Total mis gastos'}</div>
         <div style="font-family:var(--mono);font-size:18px;font-weight:600">${fmt(total)}</div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -638,12 +651,14 @@ const render = {
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="exportarExcel('mis')">📊 Excel</button>
       </div>
       <div class="card">
-        ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin gastos este mes</p></div>'}
+        ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin resultados</p></div>'}
       </div>`;
   },
   grupo(){
     const m=state.mes, a=state.anio;
-    const gastos=gastosMes(null,m,a);
+    const busqueda=state.busquedaGrupo||'';
+    let gastos=gastosMes(null,m,a);
+    if(busqueda) gastos=gastos.filter(g=>g.desc.toLowerCase().includes(busqueda.toLowerCase())||g.usuario.toLowerCase().includes(busqueda.toLowerCase())||catById(g.catId).nombre.toLowerCase().includes(busqueda.toLowerCase()));
     const total=gastos.reduce((s,g)=>s+g.monto,0);
     const sorted=[...gastos].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
     document.getElementById('mainContent').innerHTML=`
@@ -652,8 +667,12 @@ const render = {
         <span>${MESES[state.mes]} ${state.anio}</span>
         <button class="btn btn-ghost btn-sm" onclick="cambiarMes(1)">▶</button>
       </div>
+      <div style="position:relative;margin-bottom:12px">
+        <input type="text" placeholder="🔍 Buscar por descripción, usuario o categoría..." value="${busqueda}" oninput="buscarGastos(this.value,'grupo')" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);outline:none;font-size:14px">
+        ${busqueda?`<button onclick="buscarGastos('','grupo')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px">✕</button>`:''}
+      </div>
       <div class="card-sm" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:13px;color:var(--text2)">Total familia</div>
+        <div style="font-size:13px;color:var(--text2)">${busqueda?`"${busqueda}" — ${gastos.length} resultado${gastos.length!==1?'s':''}`:' Total familia'}</div>
         <div style="font-family:var(--mono);font-size:18px;font-weight:600">${fmt(total)}</div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -661,7 +680,7 @@ const render = {
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="exportarExcel('grupo')">📊 Excel</button>
       </div>
       <div class="card">
-        ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin gastos este mes</p></div>'}
+        ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin resultados</p></div>'}
       </div>`;
   },
   casa(){
@@ -763,6 +782,57 @@ const render = {
       const c2=document.getElementById('chartEv');
       if(c2) new Chart(c2,{type:'bar',data:{labels:meses6.map(x=>x.label),datasets:[{data:evData,backgroundColor:'#e8ff5a33',borderColor:'#e8ff5a',borderWidth:1.5,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{color:'#999',callback:v=>'$'+Math.round(v/1000)+'k'},grid:{color:'#ffffff11'}},x:{ticks:{color:'#999'},grid:{display:false}}}}});
     },50);
+  },
+  notificaciones(){
+    const u=state.user;
+    const ultimaVisita=state.ultimaVisita||0;
+    const ahora=Date.now();
+    // Gastos nuevos desde última visita
+    const gastosNuevos=state.gastos.filter(g=>{
+      const ts=new Date(g.creadoEn||g.fecha).getTime();
+      return ts>ultimaVisita && g.usuario!==u;
+    }).sort((a,b)=>new Date(b.creadoEn||b.fecha)-new Date(a.creadoEn||a.fecha));
+    // Items de lista nuevos desde última visita
+    const listaNueva=(state.config.listas?.compras||[]).filter(i=>{
+      const ts=new Date(i.fecha||0).getTime();
+      return ts>ultimaVisita && i.usuario!==u && !i.done;
+    });
+    // Marcar como visto
+    state.ultimaVisita=ahora;
+    try{localStorage.setItem('gf_ultimaVisita_'+u, ahora);}catch(e){}
+    actualizarBadge();
+    const sinNovedad=gastosNuevos.length===0&&listaNueva.length===0;
+    document.getElementById('mainContent').innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:600">Novedades</div>
+        <div style="font-size:12px;color:var(--text2)">Desde tu última visita</div>
+      </div>
+      ${sinNovedad?`<div class="empty-state"><div class="emoji">✅</div><p>Todo al día — sin novedades nuevas</p></div>`:''}
+      ${gastosNuevos.length?`<div class="card" style="margin-bottom:12px">
+        <div class="section-title">💰 Gastos nuevos (${gastosNuevos.length})</div>
+        ${gastosNuevos.map(g=>{
+          const cat=catById(g.catId);
+          const d=new Date(g.creadoEn||g.fecha+'T00:00:00');
+          const ds=`${d.getDate()} ${MESES[d.getMonth()].slice(0,3)}`;
+          const ud=state.config.users[g.usuario];
+          return `<div class="gasto-row">
+            <div class="g-icon" style="background:${ud?ud.color+'22':'#ffffff11'}">${cat.emoji}</div>
+            <div class="g-info">
+              <div class="g-title">${g.desc}</div>
+              <div class="g-sub"><span style="color:${ud?ud.color:'#999'}">${g.usuario}</span> · ${cat.nombre} · ${ds}</div>
+            </div>
+            <div class="g-amount">${fmt(g.monto)}</div>
+          </div>`;
+        }).join('')}
+      </div>`:''}
+      ${listaNueva.length?`<div class="card">
+        <div class="section-title">🛒 Lista de compras actualizada (${listaNueva.length} ítem${listaNueva.length!==1?'s':''})</div>
+        ${listaNueva.map(it=>`<div class="lista-item">
+          <div style="font-size:18px">🛒</div>
+          <div style="flex:1"><div style="font-size:14px;font-weight:500">${it.texto}</div>
+          <div style="font-size:12px;color:var(--text2)">${it.categoria||'Sin categoría'} · agregado por ${it.usuario}</div></div>
+        </div>`).join('')}
+      </div>`:''}`;
   },
   admin(){
     const cats=state.config.categorias;
@@ -1864,7 +1934,42 @@ window.chatKeyDown=chatKeyDown;window.autoResize=autoResize;
 window.doLogin=doLogin;window.logout=logout;window.showTab=showTab;window.openModal=openModal;
 window.closeModal=closeModal;window.closeModalOutside=closeModalOutside;window.selTipo=selTipo;
 window.saveGasto=saveGasto;window.deleteGasto=deleteGasto;window.editarGasto=editarGasto;
+// BÚSQUEDA
+function buscarGastos(texto, tab){
+  if(tab==='gastos') state.busquedaGastos=texto;
+  else state.busquedaGrupo=texto;
+  render[tab]?.();
+}
+
+// NOTIFICACIONES
+function actualizarBadge(){
+  const u=state.user;
+  const ultimaVisita=state.ultimaVisita||0;
+  const gastosNuevos=state.gastos.filter(g=>{
+    const ts=new Date(g.creadoEn||g.fecha).getTime();
+    return ts>ultimaVisita && g.usuario!==u;
+  }).length;
+  const listaNueva=(state.config.listas?.compras||[]).filter(i=>{
+    const ts=new Date(i.fecha||0).getTime();
+    return ts>ultimaVisita && i.usuario!==u && !i.done;
+  }).length;
+  const total=gastosNuevos+listaNueva;
+  const badge=document.getElementById('bellBadge');
+  if(badge){
+    if(total>0){badge.style.display='flex';badge.textContent=total>9?'9+':total;}
+    else badge.style.display='none';
+  }
+}
+
+function initNotificaciones(){
+  try{
+    const saved=localStorage.getItem('gf_ultimaVisita_'+state.user);
+    state.ultimaVisita=saved?parseInt(saved):0;
+  }catch(e){state.ultimaVisita=0;}
+}
+
 window.cambiarMes=cambiarMes;window.cambiarPass=cambiarPass;
+window.buscarGastos=buscarGastos;
 window.toggleVerPass=toggleVerPass;window.subirFoto=subirFoto;window.quitarFoto=quitarFoto;
 window.abrirDetalleCat=abrirDetalleCat;window.cerrarDetalleCat=cerrarDetalleCat;
 window.exportarPDF=exportarPDF;window.exportarExcel=exportarExcel;
@@ -2036,4 +2141,32 @@ function cerrarDetalleCat(){
 }
 
 window.adminEditPass=adminEditPass;window.adminAddCat=adminAddCat;window.adminDelCat=adminDelCat;
-window.adminNuevoUsuario=adminNuevoUsuario;window.adminEditU
+window.adminNuevoUsuario=adminNuevoUsuario;window.adminEditUsuario=adminEditUsuario;
+window.aplicarTema=aplicarTema;
+window.adminDelUsuario=adminDelUsuario;window.cerrarModalUsuario=cerrarModalUsuario;
+window.selURol=selURol;window.selUAporta=selUAporta;window.selUColor=selUColor;window.guardarUsuario=guardarUsuario;
+window.adminAddSugerencia=adminAddSugerencia;window.adminEditSugerencia=adminEditSugerencia;window.adminDelSugerencia=adminDelSugerencia;
+window.cerrarModalCat=cerrarModalCat;window.selNcTipo=selNcTipo;window.selNcEmoji=selNcEmoji;window.guardarNuevaCat=guardarNuevaCat;
+
+// DRAG TO SCROLL NAV (desktop)
+(()=>{
+  const nav=document.getElementById('mainNav');
+  if(!nav)return;
+  let isDown=false,startX,scrollLeft;
+  nav.addEventListener('mousedown',e=>{isDown=true;nav.style.cursor='grabbing';startX=e.pageX-nav.offsetLeft;scrollLeft=nav.scrollLeft;});
+  nav.addEventListener('mouseleave',()=>{isDown=false;nav.style.cursor='grab';});
+  nav.addEventListener('mouseup',()=>{isDown=false;nav.style.cursor='grab';});
+  nav.addEventListener('mousemove',e=>{if(!isDown)return;e.preventDefault();const x=e.pageX-nav.offsetLeft;nav.scrollLeft=scrollLeft-(x-startX)*1.5;});
+})();
+
+// BOOT — limpiar fotos viejas de localStorage
+try{Object.keys(localStorage).filter(k=>k.startsWith('foto_')||k.startsWith('gf_foto_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
+loadConfig().then(()=>{renderLogin();setSyncStatus(false);});
+
+// SERVICE WORKER para PWA
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
