@@ -639,20 +639,22 @@ const render = {
         <button class="btn btn-ghost btn-sm" onclick="cambiarMes(1)">▶</button>
       </div>
       <div style="position:relative;margin-bottom:12px">
-        <input type="text" placeholder="🔍 Buscar gastos..." value="${busqueda}" oninput="buscarGastos(this.value,'gastos')" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);outline:none;font-size:14px">
-        ${busqueda?`<button onclick="buscarGastos('','gastos')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px">✕</button>`:''}
+        <input type="text" id="searchInput" placeholder="🔍 Buscar gastos..." value="${busqueda}" oninput="buscarGastos(this.value,'gastos')" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);outline:none;font-size:14px">
+        <button id="searchClear" onclick="limpiarBusqueda('gastos')" style="display:${busqueda?'block':'none'};position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px">✕</button>
       </div>
       <div class="card-sm" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:13px;color:var(--text2)">${busqueda?`"${busqueda}" — ${gastos.length} resultado${gastos.length!==1?'s':''}`:' Total mis gastos'}</div>
-        <div style="font-family:var(--mono);font-size:18px;font-weight:600">${fmt(total)}</div>
+        <div id="searchTotal" style="font-size:13px;color:var(--text2)">${busqueda?'"'+busqueda+'" — '+gastos.length+' resultado'+(gastos.length!==1?'s':''):'Total mis gastos'}</div>
+        <div id="searchAmount" style="font-family:var(--mono);font-size:18px;font-weight:600">${fmt(total)}</div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="exportarPDF('mis')">📄 PDF</button>
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="exportarExcel('mis')">📊 Excel</button>
       </div>
-      <div class="card">
-        ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin resultados</p></div>'}
+      <div class="card" id="searchResults">
+        ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin gastos este mes</p></div>'}
       </div>`;
+    // Mantener foco si había búsqueda
+    if(busqueda) setTimeout(()=>{const inp=document.getElementById('searchInput');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);}},50);
   },
   grupo(){
     const m=state.mes, a=state.anio;
@@ -668,20 +670,21 @@ const render = {
         <button class="btn btn-ghost btn-sm" onclick="cambiarMes(1)">▶</button>
       </div>
       <div style="position:relative;margin-bottom:12px">
-        <input type="text" placeholder="🔍 Buscar por descripción, usuario o categoría..." value="${busqueda}" oninput="buscarGastos(this.value,'grupo')" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);outline:none;font-size:14px">
-        ${busqueda?`<button onclick="buscarGastos('','grupo')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px">✕</button>`:''}
+        <input type="text" id="searchInput" placeholder="🔍 Buscar por descripción, usuario o categoría..." value="${busqueda}" oninput="buscarGastos(this.value,'grupo')" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);outline:none;font-size:14px">
+        <button id="searchClear" onclick="limpiarBusqueda('grupo')" style="display:${busqueda?'block':'none'};position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px">✕</button>
       </div>
       <div class="card-sm" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:13px;color:var(--text2)">${busqueda?`"${busqueda}" — ${gastos.length} resultado${gastos.length!==1?'s':''}`:' Total familia'}</div>
-        <div style="font-family:var(--mono);font-size:18px;font-weight:600">${fmt(total)}</div>
+        <div id="searchTotal" style="font-size:13px;color:var(--text2)">${busqueda?'"'+busqueda+'" — '+gastos.length+' resultado'+(gastos.length!==1?'s':''):'Total familia'}</div>
+        <div id="searchAmount" style="font-family:var(--mono);font-size:18px;font-weight:600">${fmt(total)}</div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="exportarPDF('grupo')">📄 PDF</button>
         <button class="btn btn-ghost btn-sm" style="flex:1" onclick="exportarExcel('grupo')">📊 Excel</button>
       </div>
-      <div class="card">
-        ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin resultados</p></div>'}
+      <div class="card" id="searchResults">
+        ${sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">📭</div><p>Sin gastos este mes</p></div>'}
       </div>`;
+    if(busqueda) setTimeout(()=>{const inp=document.getElementById('searchInput');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);}},50);
   },
   casa(){
     const m=state.mes, a=state.anio;
@@ -1921,11 +1924,28 @@ window.chatKeyDown=chatKeyDown;window.autoResize=autoResize;
 window.doLogin=doLogin;window.logout=logout;window.showTab=showTab;window.openModal=openModal;
 window.closeModal=closeModal;window.closeModalOutside=closeModalOutside;window.selTipo=selTipo;
 window.saveGasto=saveGasto;window.deleteGasto=deleteGasto;window.editarGasto=editarGasto;
-// BÚSQUEDA
 function buscarGastos(texto, tab){
   if(tab==='gastos') state.busquedaGastos=texto;
   else state.busquedaGrupo=texto;
-  render[tab]?.();
+  // Solo actualizar la lista de resultados, no el input
+  const u=state.user, m=state.mes, a=state.anio;
+  const busqueda=texto.toLowerCase();
+  let gastos=tab==='gastos'?gastosMes(u,m,a):gastosMes(null,m,a);
+  if(busqueda) gastos=gastos.filter(g=>
+    g.desc.toLowerCase().includes(busqueda)||
+    catById(g.catId).nombre.toLowerCase().includes(busqueda)||
+    (tab==='grupo'&&g.usuario.toLowerCase().includes(busqueda))
+  );
+  const total=gastos.reduce((s,g)=>s+g.monto,0);
+  const sorted=[...gastos].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+  const resultsEl=document.getElementById('searchResults');
+  const totalEl=document.getElementById('searchTotal');
+  const clearBtn=document.getElementById('searchClear');
+  if(resultsEl) resultsEl.innerHTML=sorted.length?sorted.map(g=>rowGasto(g,true)).join(''):'<div class="empty-state"><div class="emoji">🔍</div><p>Sin resultados</p></div>';
+  if(totalEl) totalEl.textContent=busqueda?'"'+texto+'" — '+gastos.length+' resultado'+(gastos.length!==1?'s':''):(tab==='gastos'?'Total mis gastos':'Total familia');
+  if(clearBtn) clearBtn.style.display=busqueda?'block':'none';
+  const amountEl=document.getElementById('searchAmount');
+  if(amountEl) amountEl.textContent=fmt(total);
 }
 
 // NOTIFICACIONES
@@ -1957,7 +1977,12 @@ function initNotificaciones(){
 }
 
 window.cambiarMes=cambiarMes;window.cambiarPass=cambiarPass;
-window.buscarGastos=buscarGastos;
+function limpiarBusqueda(tab){
+  if(tab==='gastos') state.busquedaGastos='';
+  else state.busquedaGrupo='';
+  render[tab]?.();
+}
+window.buscarGastos=buscarGastos;window.limpiarBusqueda=limpiarBusqueda;
 window.toggleVerPass=toggleVerPass;window.subirFoto=subirFoto;window.quitarFoto=quitarFoto;
 window.abrirDetalleCat=abrirDetalleCat;window.cerrarDetalleCat=cerrarDetalleCat;
 window.exportarPDF=exportarPDF;window.exportarExcel=exportarExcel;
