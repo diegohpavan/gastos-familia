@@ -646,7 +646,7 @@ async function doLogin(){
     document.getElementById('loginErr').style.display='block';return;
   }
   state.user = u;
-  try{localStorage.setItem('gf_session', u);}catch(e){}
+  try{await saveSession(u);}catch(e){}
   document.getElementById('loginStatus').textContent='Conectando...';
   await loadConfig();
   document.getElementById('loginScreen').style.display='none';
@@ -660,7 +660,7 @@ document.getElementById('passInput').addEventListener('keydown',e=>{if(e.key==='
 
 function logout(){
   if(state.unsub) state.unsub();
-  try{localStorage.removeItem('gf_session');}catch(e){}
+  try{clearSession();}catch(e){}
   state.user=null;state.gastos=[];
   document.getElementById('app').style.display='none';
   document.getElementById('fabBtn').style.display='none';
@@ -2512,9 +2512,8 @@ loadConfig().then(async ()=>{
   renderLogin();
   setSyncStatus(false);
   initBackButton();
-  // Restaurar sesión guardada después de tener los usuarios
   try{
-    const savedUser=localStorage.getItem('gf_session');
+    const savedUser=await getSession();
     if(savedUser && state.config.users && state.config.users[savedUser]){
       state.user=savedUser;
       document.getElementById('loginScreen').style.display='none';
@@ -2526,7 +2525,54 @@ loadConfig().then(async ()=>{
   }catch(e){}
 });
 
-// CONFIRMACIÓN AL SALIR — funciona en PWA móvil
+// Sesión persistente — funciona en PWA móvil
+async function saveSession(user){
+  try{
+    localStorage.setItem('gf_session',user);
+    // También en IndexedDB para PWA
+    const req=indexedDB.open('gf_db',1);
+    req.onupgradeneeded=e=>e.target.result.createObjectStore('session');
+    req.onsuccess=e=>{
+      const db=e.target.result;
+      const tx=db.transaction('session','readwrite');
+      tx.objectStore('session').put(user,'user');
+    };
+  }catch(e){}
+}
+
+async function getSession(){
+  return new Promise(resolve=>{
+    try{
+      // Primero localStorage
+      const ls=localStorage.getItem('gf_session');
+      if(ls){resolve(ls);return;}
+      // Luego IndexedDB
+      const req=indexedDB.open('gf_db',1);
+      req.onupgradeneeded=e=>e.target.result.createObjectStore('session');
+      req.onsuccess=e=>{
+        const db=e.target.result;
+        try{
+          const tx=db.transaction('session','readonly');
+          const r=tx.objectStore('session').get('user');
+          r.onsuccess=()=>resolve(r.result||null);
+          r.onerror=()=>resolve(null);
+        }catch(e){resolve(null);}
+      };
+      req.onerror=()=>resolve(null);
+    }catch(e){resolve(null);}
+  });
+}
+
+async function clearSession(){
+  try{localStorage.removeItem('gf_session');}catch(e){}
+  try{
+    const req=indexedDB.open('gf_db',1);
+    req.onsuccess=e=>{
+      const db=e.target.result;
+      try{const tx=db.transaction('session','readwrite');tx.objectStore('session').delete('user');}catch(e){}
+    };
+  }catch(e){}
+}
 function initBackButton(){
   // Empujar estado continuamente para "atrapar" el botón atrás
   history.pushState(null, '', location.href);
