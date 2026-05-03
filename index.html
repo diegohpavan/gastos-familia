@@ -2508,28 +2508,24 @@ document.addEventListener('input',e=>{
 try{Object.keys(localStorage).filter(k=>k.startsWith('foto_')||k.startsWith('gf_foto_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
 loadConfig().then(()=>{renderLogin();setSyncStatus(false);initBackButton();});
 
-// CONFIRMACIÓN AL SALIR — intercepta botón atrás
+// CONFIRMACIÓN AL SALIR — funciona en PWA móvil
 function initBackButton(){
-  history.pushState({app:'gastos'}, '');
-  window.addEventListener('popstate', e=>{
-    if(state.user){
-      // Si hay un modal abierto, cerrarlo
-      const modales=['gastoModal','modalDesglose','modalUsuario','modalNuevaCat','detalleCatModal'];
-      const abierto=modales.find(id=>{const el=document.getElementById(id);return el&&el.style.display!=='none';});
-      if(abierto){
-        document.getElementById(abierto).style.display='none';
-        history.pushState({app:'gastos'},'');
-        return;
-      }
-      // Si no hay modal, confirmar salida
-      if(confirm('¿Querés cerrar la aplicación?')){
-        state.user=null;
-        document.getElementById('app').style.display='none';
-        document.getElementById('loginScreen').style.display='flex';
-        renderLogin();
-      } else {
-        history.pushState({app:'gastos'},'');
-      }
+  // Empujar estado continuamente para "atrapar" el botón atrás
+  history.pushState(null, '', location.href);
+  window.addEventListener('popstate', ()=>{
+    // Siempre volver a pushear para no salir nunca sin confirmar
+    history.pushState(null, '', location.href);
+    if(!state.user) return;
+    // Cerrar modal abierto si hay
+    const modales=['gastoModal','modalDesglose','modalUsuario','modalNuevaCat','detalleCatModal'];
+    const abierto=modales.find(id=>{const el=document.getElementById(id);return el&&el.style.display!=='none';});
+    if(abierto){document.getElementById(abierto).style.display='none';return;}
+    // Confirmar salida
+    if(confirm('¿Salir de Gastos Familia?')){
+      state.user=null;
+      document.getElementById('app').style.display='none';
+      document.getElementById('loginScreen').style.display='flex';
+      renderLogin();
     }
   });
 }
