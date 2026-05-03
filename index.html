@@ -2509,24 +2509,21 @@ document.addEventListener('input',e=>{
 // BOOT — limpiar fotos viejas de localStorage
 try{Object.keys(localStorage).filter(k=>k.startsWith('foto_')||k.startsWith('gf_foto_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
 loadConfig().then(async ()=>{
-  // Restaurar sesión guardada
+  renderLogin();
+  setSyncStatus(false);
+  initBackButton();
+  // Restaurar sesión guardada después de tener los usuarios
   try{
     const savedUser=localStorage.getItem('gf_session');
-    if(savedUser&&state.config.users[savedUser]){
+    if(savedUser && state.config.users && state.config.users[savedUser]){
       state.user=savedUser;
-      await loadConfig();
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='flex';
       document.getElementById('fabBtn').style.display='flex';
       initApp();
       startGastosListener();
-      initBackButton();
-      return;
     }
   }catch(e){}
-  renderLogin();
-  setSyncStatus(false);
-  initBackButton();
 });
 
 // CONFIRMACIÓN AL SALIR — funciona en PWA móvil
