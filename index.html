@@ -203,12 +203,15 @@ input:checked+.slider:before{transform:translateX(18px);background:#0f0f0f}
   <div class="login-logo">gastos<span>.</span>familia</div>
   <div class="login-sub">Seleccioná tu usuario y entrá</div>
   <div class="user-grid" id="userGrid"></div>
-  <div class="field">
-    <label>Contraseña</label>
-    <input type="password" id="passInput" placeholder="••••••••" autocomplete="current-password">
-  </div>
-  <div class="err" id="loginErr">Contraseña incorrecta</div>
-  <button class="btn btn-accent" onclick="doLogin()">Entrar</button>
+  <form onsubmit="doLogin();return false;" autocomplete="on">
+    <input type="text" id="usernameHidden" name="username" autocomplete="username" style="position:absolute;opacity:0;pointer-events:none;height:0">
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="passInput" name="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="err" id="loginErr">Contraseña incorrecta</div>
+    <button type="submit" class="btn btn-accent">Entrar</button>
+  </form>
   <div style="margin-top:12px;font-size:12px;color:var(--text3);text-align:center" id="loginStatus"></div>
 </div>
 </div>
@@ -626,6 +629,10 @@ function renderLogin(){
       state.selUser=u;
       document.querySelectorAll('.user-btn').forEach(b=>b.classList.remove('selected'));
       btn.classList.add('selected');
+      // Para que el gestor de contraseñas asocie usuario + contraseña
+      const uh=document.getElementById('usernameHidden');
+      if(uh) uh.value=u;
+      document.getElementById('passInput').focus();
     };
     grid.appendChild(btn);
   });
@@ -2499,9 +2506,33 @@ document.addEventListener('input',e=>{
 
 // BOOT — limpiar fotos viejas de localStorage
 try{Object.keys(localStorage).filter(k=>k.startsWith('foto_')||k.startsWith('gf_foto_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
-loadConfig().then(()=>{renderLogin();setSyncStatus(false);});
+loadConfig().then(()=>{renderLogin();setSyncStatus(false);initBackButton();});
 
-// Desregistrar Service Worker viejo para evitar caché
+// CONFIRMACIÓN AL SALIR — intercepta botón atrás
+function initBackButton(){
+  history.pushState({app:'gastos'}, '');
+  window.addEventListener('popstate', e=>{
+    if(state.user){
+      // Si hay un modal abierto, cerrarlo
+      const modales=['gastoModal','modalDesglose','modalUsuario','modalNuevaCat','detalleCatModal'];
+      const abierto=modales.find(id=>{const el=document.getElementById(id);return el&&el.style.display!=='none';});
+      if(abierto){
+        document.getElementById(abierto).style.display='none';
+        history.pushState({app:'gastos'},'');
+        return;
+      }
+      // Si no hay modal, confirmar salida
+      if(confirm('¿Querés cerrar la aplicación?')){
+        state.user=null;
+        document.getElementById('app').style.display='none';
+        document.getElementById('loginScreen').style.display='flex';
+        renderLogin();
+      } else {
+        history.pushState({app:'gastos'},'');
+      }
+    }
+  });
+}
 if('serviceWorker' in navigator){
   navigator.serviceWorker.getRegistrations().then(regs=>{
     regs.forEach(r=>r.unregister());
