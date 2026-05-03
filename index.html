@@ -646,6 +646,7 @@ async function doLogin(){
     document.getElementById('loginErr').style.display='block';return;
   }
   state.user = u;
+  try{localStorage.setItem('gf_session', u);}catch(e){}
   document.getElementById('loginStatus').textContent='Conectando...';
   await loadConfig();
   document.getElementById('loginScreen').style.display='none';
@@ -659,6 +660,7 @@ document.getElementById('passInput').addEventListener('keydown',e=>{if(e.key==='
 
 function logout(){
   if(state.unsub) state.unsub();
+  try{localStorage.removeItem('gf_session');}catch(e){}
   state.user=null;state.gastos=[];
   document.getElementById('app').style.display='none';
   document.getElementById('fabBtn').style.display='none';
@@ -2506,7 +2508,26 @@ document.addEventListener('input',e=>{
 
 // BOOT — limpiar fotos viejas de localStorage
 try{Object.keys(localStorage).filter(k=>k.startsWith('foto_')||k.startsWith('gf_foto_')).forEach(k=>localStorage.removeItem(k));}catch(e){}
-loadConfig().then(()=>{renderLogin();setSyncStatus(false);initBackButton();});
+loadConfig().then(async ()=>{
+  // Restaurar sesión guardada
+  try{
+    const savedUser=localStorage.getItem('gf_session');
+    if(savedUser&&state.config.users[savedUser]){
+      state.user=savedUser;
+      await loadConfig();
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('app').style.display='flex';
+      document.getElementById('fabBtn').style.display='flex';
+      initApp();
+      startGastosListener();
+      initBackButton();
+      return;
+    }
+  }catch(e){}
+  renderLogin();
+  setSyncStatus(false);
+  initBackButton();
+});
 
 // CONFIRMACIÓN AL SALIR — funciona en PWA móvil
 function initBackButton(){
