@@ -982,7 +982,9 @@ const render = {
     const ahora=Date.now();
     const gastosNuevos=state.gastos.filter(g=>{
       const ts=new Date(g.creadoEn||g.fecha).getTime();
-      return ts>ultimaVisita && g.usuario!==u;
+      // Solo mostrar gastos de casa — respetar privacidad
+      const esCasa=g.tipo==='casa'||(g.tipo==='tarjeta'&&g.tarjetaDestino==='casa');
+      return ts>ultimaVisita && g.usuario!==u && esCasa;
     }).sort((a,b)=>new Date(b.creadoEn||b.fecha)-new Date(a.creadoEn||a.fecha));
     const listaNueva=(state.config.listas?.compras||[]).filter(i=>{
       const ts=new Date(i.fecha||0).getTime();
@@ -2199,7 +2201,8 @@ function actualizarBadge(){
   const ultimaVisita=state.ultimaVisita||0;
   const gastosNuevos=state.gastos.filter(g=>{
     const ts=new Date(g.creadoEn||g.fecha).getTime();
-    return ts>ultimaVisita && g.usuario!==u;
+    const esCasa=g.tipo==='casa'||(g.tipo==='tarjeta'&&g.tarjetaDestino==='casa');
+    return ts>ultimaVisita && g.usuario!==u && esCasa;
   }).length;
   const listaNueva=(state.config.listas?.compras||[]).filter(i=>{
     const ts=new Date(i.fecha||0).getTime();
